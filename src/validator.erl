@@ -1,70 +1,51 @@
 -module(validator).
 -compile([export_all]).
 
--define(TYPES, [<<"binary">>, <<"integer">>, <<"list">>, <<"boolean">>]).
--define(PROPERTIES, [<<"email">>, <<"length">>]).
+-define(TYPE_NUMBER, 2).
+-define(PROPERTY_NUMBER, 3).
 
--record(properties,{
-  props  = [
-    {<<"length">>,[<<"min">>,<<"max">>]},
-    {<<"email">>,[<<"email">>]}
-  ]
-}).
+-include("validator.hrl").
+
+one() ->
+    [{user0, binary}, {length, [{min , 0}, {max , 10}, {allowEmpty, false}] }].
+
+many() ->
+  [
+    [{user1, binary}, {length, [{min , 0}, {max , 10}, {allowEmpty, false}] }],
+    [{user2, binar}, {length, [{min , 0}, {max , 10}, {allowEmpty, false}] }]
+  ].
 
 test() ->
-  Rules =
-  [
-    [{username, binary}, {property, length}, [{max, 100}, {min, 0}]],
-    [{email, binary}, {property, email}]
-  ],
-  valid_rules(Rules).
+  List = many(),
+  [Header|_]= List,
+  is_check(is_tuple(Header), List).
 
-valid_rules(Rules) when is_list(Rules) ->
-  [ valid_rule(Rule) || Rule <- Rules];
-valid_rules(Rules) ->
-  {error, {incorrect_format, Rules}}.
+is_check(true, [FirstList|Options]) ->  {_Name, Type} = FirstList,
+  isset_check_many(type, isset_validator(to_atom(Type), ?TYPE_NUMBER), to_atom(Type), FirstList, Options);
+is_check(false, List) -> [check_many(L) || L<-List].
 
-valid_rule([]) -> {error, incorrect_rules};
-valid_rule([Type]) -> valid_tuple(Type, ?TYPES);
-valid_rule([Type, Property]) -> valid_type_prop(valid_tuple(Type, ?TYPES), valid_tuple(Property, ?PROPERTIES));
-valid_rule([Type, Property | [Options]]) -> valid_type_prop_opts(valid_tuple(Type, ?TYPES), valid_tuple(Property, ?PROPERTIES), Options).
+check_many([FirstList|Options]) ->
+  {_Name, Type} = FirstList,
+  isset_check_many(type, isset_validator(to_atom(Type),?TYPE_NUMBER), to_atom(Type), FirstList, Options).
 
-valid_type_prop_opts(_Type, {error, _Reason} = Reason, _Options) -> [Reason];
-valid_type_prop_opts(Type, Propperties, Options) ->
-  {_,Param} = Propperties,
-  ListOpts = [Type, Propperties, valid_opts(Param, Options)],
-  is_opt_has_error(true, lists:keyfind(error, 1 , ListOpts), ListOpts).
+isset_check_many(State, false, Type, _, _) -> {error, {incorrect, State, Type}};
+isset_check_many(_State, _IssetValidator, _Type, _FirstList, Options) ->
+  [ check_property(property, Property, Option, isset_validator(to_atom(Property), ?PROPERTY_NUMBER), is_list(Options)) || {Property, Option}<-Options].
 
-valid_opts(Param, Options) ->
-  ListOpts = [ valid_opt(isset_property(?PROPERTIES, Param), Option) || Option <- Options ],
-  is_opt_has_error(false, lists:keyfind(error, 1 , ListOpts), ListOpts).
+check_property(State, Property, _Option, false, true)             -> {error, {incorrect, State, Property}};
+check_property(_State, _Property, Options, _IssetValidator, true) ->
+  [check_option(option, isset_validation_options(to_atom(Key)), Key,Val) || {Key,Val}<-Options ];
+check_property(_State, Property, Option, _IssetValidator, false)  -> check_option(option, isset_validation_options(to_atom(Property)), Property, Option).
 
-is_opt_has_error(_, false, ListOpts)  -> ListOpts;
-is_opt_has_error(true, Error, _ListOpts) -> [Error];
-is_opt_has_error(false, Error, _ListOpts) -> Error.
+check_option(State, false, Key, _Val) ->  {error, {incorrect, State, Key}};
+check_option(_State, true, Key, Val) ->  {Key, Val}.
 
-valid_opt(_Param, {_}) -> {error, {incorrect_options}};
-valid_opt({error, _Reason} = Reason, _) -> [Reason];
-valid_opt(Param, {Key, Value}) ->
-  P=#properties{},
-  valid_child_opts(isset_property(proplists:get_value(Param, P#properties.props),to_binary(Key)),Value).
+isset_validator(What, N) ->
+  lists:keyfind(What, N, ?VALIDATORS_LIST).
 
-valid_child_opts({error, _Reason} = Reason, _) ->Reason;
-valid_child_opts(Key, Value) ->{Key, Value}.
-
-%% =====================================================================================================================
-%% Validation types and properties
-%% =====================================================================================================================
-valid_type_prop({error, _Reason} = Reason, _Property) -> [Reason];
-valid_type_prop(_Type, {error, _Reason} = Reason) -> [Reason];
-valid_type_prop({KeyType, ValueType}, {KeyParam,ValueParam}) -> [{KeyType, ValueType}, {KeyParam,ValueParam}].
-
-valid_tuple({Param, Type}, List) -> is_member_list(
-  lists:member(to_binary(Type), List),
-  lists:member(to_binary(Type), List),
-  to_binary(Param),
-  to_binary(Type)
-).
+isset_validation_options(Key) ->
+  Lists = [ Options || {_,_,_,Options}<-?VALIDATORS_LIST],
+  lists:member(Key, lists:merge(Lists)).
 %% =====================================================================================================================
 %% Converting types
 %% =====================================================================================================================
@@ -81,17 +62,3 @@ to_atom(Type) ->
     is_list(Type) -> list_to_atom(Type);
     is_binary(Type) -> binary_to_atom(Type, latin1)
   end.
-%% =====================================================================================================================
-%% Returns true if Elem matches some element of List, otherwise error.
-%% =====================================================================================================================
-is_member_list(undefined, false, Param, _Type) -> {error, {incorrect, Param}};
-is_member_list(_, true, Param, Type) -> {Param, Type};
-is_member_list(_, false, Param, _Type) -> {error, {incorrect, Param}}.
-%% =====================================================================================================================
-%% Isset property
-%% =====================================================================================================================
-isset_property(List, Property)->
-  is_member_prop(lists:member(Property, List), Property).
-
-is_member_prop(true, Property) -> Property;
-is_member_prop(false, Property) -> {error, {not_exists, Property}}.
