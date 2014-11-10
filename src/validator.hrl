@@ -1,13 +1,13 @@
 -define(VALIDATORS_LIST,
   [
-    #string_validator{},
+    #length_validator{},
     #email_validator{}
   ]).
 
--record(string_validator,{
+-record(length_validator,{
   type      = binary,
   property  = length,
-  estate    = [min,max,allowEmpty]
+  estate    = [min,max,is]
 }).
 
 -record(email_validator,{
