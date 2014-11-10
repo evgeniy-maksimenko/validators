@@ -3,21 +3,7 @@
 
 -define(MODULE_PARTICAL, "_validator").
 
-attrs() ->
-  [{<<"user0">>,<<"421">>}, {<<"user1">>,<<"23">>}, {<<"user2">>,<<"12">>}].
-
-one() ->
-  [{user0, binary}, {length, [{min , 0}, {max , 10}] }].
-
-many() ->
-  [
-    [{user1, binary}, {length, [{min , 0}, {max , 100}] }],
-    [{user2, binary}, {length, [{min , 0}, {max , 100}] }]
-  ].
-
-main()->
-  Attrs = attrs(),
-  Rules = many(),
+main(Attrs, Rules)->
   List = rules_validate:main(Rules),
   is_rules_correct(List, Attrs).
 
